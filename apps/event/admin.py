@@ -91,6 +91,8 @@ def preview_image(image_field, obj_name, alt_text, max_dimensions):
         logger.error(f"Error loading {alt_text.lower()} for '{obj_name}': {e}")
         return f"Error loading {alt_text.lower()}."
 
+# Event display in admin page
+
 
 @admin.register(Event)
 class EventAdmin(nested_admin.NestedModelAdmin):
