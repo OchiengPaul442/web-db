@@ -128,6 +128,7 @@ class PartnerAdmin(admin.ModelAdmin):
     list_filter = ('forum_events', 'category',)
     search_fields = ('name', 'category', 'forum_events__title',)
     list_per_page = 12
+    list_editable = ('order',)
     # Use the horizontal filter widget for the many-to-many field.
     filter_horizontal = ('forum_events',)
 
