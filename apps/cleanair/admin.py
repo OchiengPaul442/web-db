@@ -153,15 +153,20 @@ class PartnerAdmin(admin.ModelAdmin):
 class PersonAdmin(admin.ModelAdmin):
     list_display = ('name', 'forum_events_display',
                     'category', 'image_preview', 'order')
+    # Only scalar fields (like 'order') can be edited inline.
+    list_editable = ('order',)
     list_filter = ('forum_events', 'category')
     search_fields = ('name', 'category', 'forum_events__title',)
     list_per_page = 12
 
-    # Enable a horizontal filter widget for the many-to-many field.
+    # Use the horizontal filter widget on the change form for the M2M field.
     filter_horizontal = ('forum_events',)
 
     def forum_events_display(self, obj):
-        """Display the events a person is linked to. If none are selected, show 'All Events'."""
+        """
+        Display the events linked to the person.
+        If none are selected, interpret that as "All Events".
+        """
         events = obj.forum_events.all()
         if events.exists():
             return ", ".join(event.title for event in events)
