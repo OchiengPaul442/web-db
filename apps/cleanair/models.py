@@ -119,6 +119,7 @@ class PartnerCategoryChoices(Enum):
     HOST_PARTNER = "Host Partner"
     CO_CONVENING_PARTNER = "Co-Convening Partner"
     SPONSOR_PARTNER = "Sponsor Partner"
+    PROGRAM_PARTNER = "Program Partner"
 
     @classmethod
     def choices(cls):
@@ -174,20 +175,31 @@ class Partner(BaseModel):
     website_link = models.URLField(blank=True, null=True)
     order = models.IntegerField(default=1)
     category = models.CharField(
-        max_length=50, choices=PartnerCategoryChoices.choices(),
+        max_length=50,
+        choices=PartnerCategoryChoices.choices(),
         default=PartnerCategoryChoices.FUNDING_PARTNER.value
     )
-    forum_event = models.ForeignKey(
-        ForumEvent, null=True, blank=True, related_name="partners", on_delete=models.SET_NULL
+    # Change: Use a ManyToManyField to ForumEvent.
+    forum_events = models.ManyToManyField(
+        'ForumEvent',
+        related_name="partners",
+        blank=True
     )
     authored_by = models.ForeignKey(
-        'auth.User', related_name='cleanair_partner_authored_by', null=True, blank=True, on_delete=models.SET_NULL
+        'auth.User',
+        related_name='cleanair_partner_authored_by',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL
     )
 
     class Meta:
         ordering = ['order']
 
     def __str__(self):
+        # If no specific events are selected, interpret that as "All Events"
+        if self.forum_events.count() == 0:
+            return f"All Events - {self.get_category_display()} - {self.name}"
         return f"{self.get_category_display()} - {self.name}"
 
 
@@ -250,10 +262,14 @@ class Support(BaseModel):
 class Person(BaseModel):
     name = models.CharField(max_length=100)
     title = models.CharField(max_length=100, blank=True)
-    bio = QuillField(blank=True, null=True,
-                     default="No details available yet.")
+    bio = QuillField(
+        blank=True,
+        null=True,
+        default="No details available yet."
+    )
     category = models.CharField(
-        max_length=50, choices=CategoryChoices.choices(),
+        max_length=50,
+        choices=CategoryChoices.choices(),
         default=CategoryChoices.SPEAKER.value
     )
     picture = CloudinaryField(
@@ -266,14 +282,21 @@ class Person(BaseModel):
     twitter = models.URLField(blank=True)
     linked_in = models.URLField(blank=True)
     order = models.IntegerField(default=1)
-    forum_event = models.ForeignKey(
-        ForumEvent, null=True, blank=True, related_name="persons", on_delete=models.SET_NULL,
+    # Use ManyToManyField to allow a person to belong to multiple events.
+    # When empty, that will be interpreted as “belongs to all events.”
+    forum_events = models.ManyToManyField(
+        'ForumEvent',  # use "your_app.ForumEvent" if necessary
+        blank=True,
+        related_name="persons"
     )
 
     class Meta:
         ordering = ['order', 'name']
 
     def __str__(self):
+        # If no events are selected, we consider the person as belonging to all events.
+        if self.forum_events.count() == 0:
+            return f"{self.name} (All Events)"
         return self.name
 
 
