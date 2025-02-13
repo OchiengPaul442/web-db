@@ -14,7 +14,7 @@ from .models import (
     Session,
     Support,
     ResourceFile,
-    ResourceSession,
+    ResourceSession, Section
 )
 import logging
 
@@ -191,3 +191,21 @@ class ProgramAdmin(NestedModelAdmin):
     search_fields = ('title', 'forum_event__title',)
     list_per_page = 12
     inlines = [SessionInline]
+
+
+@admin.register(Section)
+class SectionAdmin(admin.ModelAdmin):
+    list_display = ('get_forum_events', 'title', 'section_type',
+                    'reverse_order', 'pages', 'order')
+    # Make both the title and forum events clickable.
+    list_display_links = ('title', 'get_forum_events',)
+    list_filter = ('section_type', 'forum_events', 'pages')
+    search_fields = ('title',)
+    list_per_page = 12
+    list_editable = ('reverse_order', 'order', 'section_type',)
+    filter_horizontal = ('forum_events',)
+
+    def get_forum_events(self, obj):
+        events_str = ", ".join([fe.title for fe in obj.forum_events.all()])
+        return events_str if events_str else "(No Forum Event)"
+    get_forum_events.short_description = "Forum Events"
