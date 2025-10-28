@@ -1,6 +1,7 @@
 from django.db import models
-from cloudinary.models import CloudinaryField
 from utils.models import BaseModel
+from utils.fields import optimized_cloudinary_field
+from cloudinary.uploader import destroy
 
 
 class Tag(BaseModel):
@@ -15,18 +16,20 @@ class Highlight(BaseModel):
     # String-based reference to Tag
     tags = models.ManyToManyField("Tag", related_name='highlights')
 
-    image = CloudinaryField(
-        folder='website/uploads/highlights/images',
-        null=True,
-        blank=True,
-        resource_type='image'
+    image = optimized_cloudinary_field(
+        'website/uploads/highlights/images',
+        resource_type='image',
+        default='website/uploads/default_image.webp'
     )
 
     link = models.URLField()
     link_title = models.CharField(max_length=20, blank=True)
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
+        """Model metadata inheriting from BaseModel.Meta to remain compatible
+        with the base class's abstract Meta type (avoids Pylance type errors).
+        """
         ordering = ['order', '-id']
 
     def __str__(self):
@@ -37,5 +40,5 @@ class Highlight(BaseModel):
         Automatically delete the image from Cloudinary when the highlight is deleted.
         """
         if self.image:
-            self.image.delete(save=False)
-        super().delete(*args, **kwargs)
+            destroy(self.image.public_id, invalidate=True)
+        return super().delete(*args, **kwargs)

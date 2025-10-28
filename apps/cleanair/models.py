@@ -8,6 +8,7 @@ from django.dispatch import receiver
 from enum import Enum
 from django.utils.text import slugify
 from cloudinary.models import CloudinaryField
+from cloudinary.uploader import destroy
 from django.db.models.signals import post_save
 from multiselectfield import MultiSelectField
 
@@ -20,7 +21,9 @@ class CleanAirResource(BaseModel):
         resource_type='raw',
         folder='website/uploads/cleanair/resources/',
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     author_title = models.CharField(
         max_length=40, null=True, blank=True, default="Created By"
@@ -42,11 +45,22 @@ class CleanAirResource(BaseModel):
     resource_authors = models.CharField(max_length=200, default="AirQo")
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
+        verbose_name = "Clean Air Resource"
+        verbose_name_plural = "Clean Air Resources"
 
     def __str__(self):
         return self.resource_title
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove associated Cloudinary files before deletion.
+        """
+        if self.resource_file:
+            destroy(self.resource_file.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
 
 class ForumEvent(BaseModel):
@@ -91,14 +105,18 @@ class ForumEvent(BaseModel):
         folder='website/uploads/events/images/',
         resource_type='image',
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     location_name = models.CharField(max_length=100, blank=True)
     location_link = models.URLField(blank=True)
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
+        verbose_name = "Forum Event"
+        verbose_name_plural = "Clean Air Forum Events"
 
     def __str__(self):
         return self.title
@@ -127,6 +145,15 @@ class ForumEvent(BaseModel):
         if not self.unique_title:
             self.unique_title = self.generate_unique_title()
         super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove the associated Cloudinary image before deletion.
+        """
+        if self.background_image:
+            destroy(self.background_image.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
 
 class Section(models.Model):
@@ -212,8 +239,10 @@ class CategoryChoices(Enum):
     SPEAKER = "Speaker"
     COMMITTEE_MEMBER = "Committee Member"
     KEY_NOTE_SPEAKER = "Key Note Speaker"
+    PLENARY_SPEAKER = "Plenary Speaker"
     SPEAKER_AND_COMMITTEE_MEMBER = "Speaker and Committee Member"
     COMMITTEE_MEMBER_AND_KEY_NOTE_SPEAKER = "Committee Member and Key Note Speaker"
+    PLENARY_AND_COMMITTEE_MEMBER = "Plenary and Committee Member"
 
     @classmethod
     def choices(cls):
@@ -238,7 +267,7 @@ class Objective(BaseModel):
     )
     order = models.PositiveIntegerField(default=0, blank=False, null=False)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
@@ -251,7 +280,9 @@ class Partner(BaseModel):
         folder='website/uploads/cleanair/partners/',
         resource_type='image',
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     name = models.CharField(max_length=70)
     website_link = models.URLField(blank=True, null=True)
@@ -275,14 +306,28 @@ class Partner(BaseModel):
         on_delete=models.SET_NULL
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
         # If no specific events are selected, interpret that as "All Events"
+        # Use getattr to access the Django-generated helper method safely for
+        # static type checkers. Fall back to the raw category value if the
+        # helper isn't available in this analysis environment.
+        category_display = getattr(
+            self, 'get_category_display', lambda: self.category)()
         if self.forum_events.count() == 0:
-            return f"All Events - {self.get_category_display()} - {self.name}"
-        return f"{self.get_category_display()} - {self.name}"
+            return f"All Events - {category_display} - {self.name}"
+        return f"{category_display} - {self.name}"
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove the associated Cloudinary image before deletion.
+        """
+        if self.partner_logo:
+            destroy(self.partner_logo.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
 
 class Program(BaseModel):
@@ -297,7 +342,7 @@ class Program(BaseModel):
         'auth.User', related_name='cleanair_program_authored_by', null=True, blank=True, on_delete=models.SET_NULL
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
@@ -317,7 +362,7 @@ class Session(BaseModel):
         'auth.User', related_name='cleanair_session_authored_by', null=True, blank=True, on_delete=models.SET_NULL
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
@@ -334,7 +379,7 @@ class Support(BaseModel):
         ForumEvent, null=True, blank=True, related_name="supports", on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order']
 
     def __str__(self):
@@ -359,7 +404,9 @@ class Person(BaseModel):
         folder='website/uploads/cleanair/persons/',
         resource_type='image',
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     twitter = models.URLField(blank=True)
     linked_in = models.URLField(blank=True)
@@ -372,7 +419,7 @@ class Person(BaseModel):
         related_name="persons"
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', 'name']
 
     def __str__(self):
@@ -400,7 +447,7 @@ class ForumResource(BaseModel):
         'ForumEvent', null=True, blank=True, related_name="forum_resources", on_delete=models.SET_NULL,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
 
     def __str__(self):
@@ -410,11 +457,11 @@ class ForumResource(BaseModel):
 class ResourceSession(BaseModel):
     session_title = models.CharField(max_length=120)
     forum_resource = models.ForeignKey(
-        'ForumResource', related_name="resource_sessions", on_delete=models.CASCADE, default=1
+        'ForumResource', related_name="resource_sessions", on_delete=models.CASCADE
     )
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
 
     def __str__(self):
@@ -428,18 +475,29 @@ class ResourceFile(BaseModel):
         resource_type='raw',
         folder='website/uploads/cleanair/resources/',
         null=True,
-        blank=True
+        blank=True,
+        chunk_size=5*1024*1024,  # 5MB chunks for large files
+        timeout=600,  # 10 minutes timeout
     )
     session = models.ForeignKey(
-        'ResourceSession', related_name='resource_files', on_delete=models.CASCADE, null=True, blank=True, default=1
+        'ResourceSession', related_name='resource_files', on_delete=models.CASCADE, null=True, blank=True
     )
     order = models.IntegerField(default=1)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         ordering = ['order', '-id']
 
     def __str__(self):
         return self.file.url if self.file else "No File"
+
+    def delete(self, *args, **kwargs):
+        """
+        Override the delete method to remove the associated Cloudinary file before deletion.
+        """
+        if self.file:
+            destroy(self.file.public_id, invalidate=True)
+        result = super().delete(*args, **kwargs)
+        return result
 
 
 # signals.py
